@@ -301,19 +301,25 @@ def plot_training_curves(history):
 
 # ─── TFLITE EXPORT (for Raspberry Pi) ───────────────────
 
-def export_tflite(model):
-    """Convert to INT8 quantized TFLite model — runs ~4x faster on Pi"""
+def export_tflite(model, train_ds):
+    """Convert to TRUE INT8 quantized TFLite model"""
     converter = tf.lite.TFLiteConverter.from_keras_model(model)
     converter.optimizations = [tf.lite.Optimize.DEFAULT]
+    
+    # Force full integer quantization
+    converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
+    converter.inference_input_type = tf.int8
+    converter.inference_output_type = tf.float32 # Or int8, depending on your Pi script
+
+    # Provide a representative dataset to calibrate the quantization
+    def representative_dataset():
+        for i in range(10): # Grab 10 batches
+            images, _ = train_ds[i]
+            yield [images]
+
+    converter.representative_dataset = representative_dataset
 
     tflite_model = converter.convert()
-    save_path = str(PROJECT_ROOT / "models" / "dave2_traffiq.tflite")
-    with open(save_path, "wb") as f:
-        f.write(tflite_model)
-
-    size_kb = os.path.getsize(save_path) / 1024
-    print(f"\n[TFLite Export] Saved → {save_path}")
-    print(f"[TFLite Export] Model size: {size_kb:.1f} KB")
 
 
 # ─── INFERENCE BENCHMARK ──────────────────────────────────
