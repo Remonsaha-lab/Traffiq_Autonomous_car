@@ -1,0 +1,11 @@
+.venv/
+traffiq/traffiq_env/
+dataset/
+traffiq/dataset/
+traffiq/data/
+__pycache__/
+*.h5
+*.tflite
+*.csv
+*log.txt
+.vscode/
