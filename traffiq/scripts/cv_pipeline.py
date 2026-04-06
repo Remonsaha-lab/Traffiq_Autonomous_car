@@ -50,8 +50,11 @@ CROP_BOTTOM = int(INPUT_H * 0.85)   # 408px
 
 # White line detection — HSV thresholds for "white"
 # We use HSV because white = high V, low S regardless of lighting hue
-WHITE_S_MAX = 60    # low saturation  → white / near-white
-WHITE_V_MIN = 180   # high brightness → bright
+# WHITE_S_MAX = 60    # low saturation  → white / near-white
+# WHITE_V_MIN = 180   # high brightness → bright
+# ADDED: Relaxed thresholds to work with real-world/darker images
+WHITE_S_MAX = 100
+WHITE_V_MIN = 110
 
 # Obstacle detection — minimum contour area (pixels²)
 # Anything smaller is noise, anything larger is an obstacle
@@ -123,7 +126,13 @@ def crop_frame(image: np.ndarray) -> np.ndarray:
       introduce spurious patterns (e.g. the hood's edge
       could be mistaken for a line).
     """
-    return image[CROP_TOP:CROP_BOTTOM, :, :]
+    # return image[CROP_TOP:CROP_BOTTOM, :, :]
+    
+    # ADDED: Dynamically crop to prevent empty image errors with different sizes
+    h = image.shape[0]
+    c_top = int(h * 0.25)
+    c_bot = int(h * 0.85)
+    return image[c_top:c_bot, :, :]
 
 
 # ─── STEP 3: WHITE LINE DETECTION ─────────────────────────
@@ -260,17 +269,29 @@ def detect_obstacles(cropped: np.ndarray) -> dict:
 
     # Convert to grayscale for brightness-based detection
     gray = cv2.cvtColor(cropped, cv2.COLOR_RGB2GRAY)
+    
+    # ADDED: Blur the ground to reduce texture/noise before detection
+    gray_blurred = cv2.GaussianBlur(gray, (15, 15), 0)
 
     # Adaptive threshold: handles uneven lighting better than
     # a fixed threshold. blockSize=51 means each 51×51 pixel
     # neighbourhood gets its own threshold value.
     # C=10 subtracts a constant from the mean — helps separate
     # objects from background when they are similar brightness.
+    # ADDED: C=-20 instead of 10. By subtracting a negative (adding 20),
+    # we ensure only objects SIGNIFICANTLY brighter than the local average
+    # are kept. A positive C flags the entire background!
+    # obstacle_mask = cv2.adaptiveThreshold(
+    #     gray, 255,
+    #     cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+    #     cv2.THRESH_BINARY,
+    #     blockSize=51, C=10
+    # )
     obstacle_mask = cv2.adaptiveThreshold(
-        gray, 255,
+        gray_blurred, 255,
         cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
         cv2.THRESH_BINARY,
-        blockSize=51, C=10
+        blockSize=51, C=-20
     )
 
     # Remove white line pixels from obstacle mask.
@@ -485,16 +506,23 @@ if __name__ == "__main__":
     Press Q to quit.
     """
     print("[CV Pipeline Test] Starting webcam...")
-    cap = cv2.VideoCapture(0)
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH,  INPUT_W)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, INPUT_H)
+    # cap = cv2.VideoCapture(0)
+    # cap.set(cv2.CAP_PROP_FRAME_WIDTH,  INPUT_W)
+    # cap.set(cv2.CAP_PROP_FRAME_HEIGHT, INPUT_H)
+    # given you image
+    image_path = "/home/remon/Documents/Trafiic_car_autonomous/traffiq/scripts/images.jpeg"
+    frame = cv2.imread(image_path)
+    
 
     while True:
-        ret, frame = cap.read()
-        if not ret:
-            break
+        # ret, frame = cap.read()
+        # if not ret:
+        #     break
 
-        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        # ADDED: Resize image to expected minimum width and height to prevent processing errors
+        frame_resized = cv2.resize(frame, (INPUT_W, INPUT_H))
+        frame_rgb = cv2.cvtColor(frame_resized, cv2.COLOR_BGR2RGB)
+        # frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         result    = run_pipeline(frame_rgb)
 
         debug_bgr = cv2.cvtColor(result['debug_frame'], cv2.COLOR_RGB2BGR)

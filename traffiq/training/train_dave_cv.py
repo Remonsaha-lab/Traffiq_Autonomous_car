@@ -24,6 +24,8 @@ import json
 import argparse
 import numpy as np
 import cv2
+import matplotlib
+matplotlib.use('Agg') # ADDED: Headless backend to prevent QT XCB crashes
 import matplotlib.pyplot as plt
 from pathlib import Path
 from sklearn.model_selection import train_test_split
@@ -33,7 +35,7 @@ from tensorflow.keras import layers, models, callbacks, optimizers
 
 # Add parent folder to path so we can import cv_pipeline
 sys.path.append(str(Path(__file__).parent.parent))
-from cv.cv_pipeline import run_pipeline, normalize_lighting, crop_frame, preprocess_for_cnn
+from scripts.cv_pipeline import run_pipeline, normalize_lighting, crop_frame, preprocess_for_cnn
 
 # ─── CONFIGURATION ────────────────────────────────────────
 IMG_HEIGHT        = 66
@@ -133,14 +135,20 @@ class TraffiqDatasetV2(tf.keras.utils.Sequence):
         images, labels = [], []
 
         for rec in batch:
-            img = cv2.imread(rec["image_path"])
+            # img = cv2.imread(rec["image_path"])
+            # ADDED: Correctly scope the dataset image path from the data_dir via absolute mapping created in train
+            actual_path = rec.get("image_path_abs", rec["image_path"])
+            img = cv2.imread(actual_path)
+            
             if img is None:
                 continue
 
             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
-            direction = float(rec["direction"])
-            speed     = float(rec["speed"])
+            # direction = float(rec["direction"])
+            # speed     = float(rec["speed"])
+            direction = float(rec["steering"])
+            speed     = float(rec["throttle"])
 
             if self.augment:
                 # Always apply lighting augmentations
@@ -163,7 +171,7 @@ class TraffiqDatasetV2(tf.keras.utils.Sequence):
             images.append(processed)
             labels.append([speed, direction])
 
-        return np.array(images), np.array(labels)
+        return np.array(images), np.array(labels, dtype=np.float32)
 
     def on_epoch_end(self):
         np.random.shuffle(self.records)
@@ -251,9 +259,14 @@ def train(data_dir: str, epochs: int):
     with open(label_file) as f:
         records = json.load(f)
 
+    # ADDED: Safely resolve absolute path because running from parent directory crashes relative paths
+    for r in records:
+        r["image_path_abs"] = str(Path(data_dir) / "images" / os.path.basename(r.get("image_path", "")))
+
     # Check that labels have both speed and direction
     sample = records[0]
-    if "direction" not in sample or "speed" not in sample:
+    # if "direction" not in sample or "speed" not in sample:
+    if "steering" not in sample or "throttle" not in sample:
         raise KeyError(
             "labels.json must contain 'direction' and 'speed' fields.\n"
             "If you collected data with the old collect_data.py (which\n"
@@ -264,8 +277,10 @@ def train(data_dir: str, epochs: int):
     print(f"\n[Dataset] Loaded {len(records)} records from {data_dir}")
 
     # ── Balance steering distribution ────────────────────
-    straight = [r for r in records if abs(r["direction"]) < 0.05]
-    turning  = [r for r in records if abs(r["direction"]) >= 0.05]
+    # straight = [r for r in records if abs(r["direction"]) < 0.05]
+    # turning  = [r for r in records if abs(r["direction"]) >= 0.05]
+    straight = [r for r in records if abs(r["steering"]) < 0.05]
+    turning  = [r for r in records if abs(r["steering"]) >= 0.05]
     balanced = turning + straight[:len(turning)]
     np.random.shuffle(balanced)
     print(f"[Dataset] Balanced: {len(balanced)} records "
@@ -383,7 +398,7 @@ def plot_training_curves(history):
     plt.tight_layout()
     plt.savefig("models/training_curves_v2.png", dpi=150)
     print("[Saved] Training curves → models/training_curves_v2.png")
-    plt.show()
+    # plt.show() # Commented out to prevent Qt display crash
 
 
 # ─── TFLITE EXPORT ────────────────────────────────────────
@@ -402,7 +417,9 @@ def export_tflite(model, data_dir: str):
 
     def representative_dataset():
         for rec in sample:
-            img = cv2.imread(rec["image_path"])
+            # img = cv2.imread(rec["image_path"])
+            img_path_abs = str(Path(data_dir) / "images" / os.path.basename(rec.get("image_path", "")))
+            img = cv2.imread(img_path_abs)
             if img is None:
                 continue
             img        = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
