@@ -45,8 +45,8 @@ BATCH_SIZE        = 64
 EPOCHS            = 100          # Increased — let EarlyStopping decide
 LEARNING_RATE     = 1e-4
 VALIDATION_SPLIT  = 0.2
-MODEL_SAVE_PATH   = "models/traffiq_v2.h5"
-TFLITE_SAVE_PATH  = "models/traffiq_v2.tflite"
+MODEL_SAVE_PATH   = "models/traffiq1_v2.h5"
+TFLITE_SAVE_PATH  = "models/traffiq1_v2.tflite"
 
 # Loss weights — direction mistakes crash the car,
 # speed mistakes just slow it down. Weight accordingly.
@@ -396,7 +396,7 @@ def plot_training_curves(history):
                     linewidth=1, label='Target')
 
     plt.tight_layout()
-    plt.savefig("models/training_curves_v2.png", dpi=150)
+    plt.savefig("models/training_curves_v2.png", tdpi=150)
     print("[Saved] Training curves → models/training_curves_v2.png")
     # plt.show() # Commented out to prevent Qt display crash
 
