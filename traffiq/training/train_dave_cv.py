@@ -396,7 +396,7 @@ def plot_training_curves(history):
                     linewidth=1, label='Target')
 
     plt.tight_layout()
-    plt.savefig("models/training_curves_v2.png", tdpi=150)
+    plt.savefig("models/training_curves_v2.png", dpi=150)
     print("[Saved] Training curves → models/training_curves_v2.png")
     # plt.show() # Commented out to prevent Qt display crash
 
@@ -470,7 +470,7 @@ def benchmark_inference(model, n_runs: int = 100):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="TRAFFIQ v2 Trainer")
-    parser.add_argument("--data_dir", type=str, required=True)
+    parser.add_argument("--data_dir", type=str, default="/home/remon/Documents/Trafiic_car_autonomous/traffiq/dataset/20260327_005825")
     parser.add_argument("--epochs",   type=int, default=EPOCHS)
     args = parser.parse_args()
 
